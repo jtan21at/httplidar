@@ -13,6 +13,10 @@ path = "src/bin/main.rs"
 name = "server"
 path = "src/bin/server.rs"
 
+[[bin]]
+name = "frog_eye"
+path = "src/bin/frog_eye.rs"
+
 [dependencies]
 axum = "0.7"
 tokio = { version = "1", features = ["full"] }

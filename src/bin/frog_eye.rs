@@ -49,6 +49,8 @@ struct HumanTrack {
     centroid: (f64, f64),
     missed: u32,
     has_barked: bool,
+    history: Vec<(f64, f64)>,
+    is_active: bool,
 }
 
 fn main() {
@@ -110,7 +112,7 @@ fn main() {
                     
                     let mut needs_bark = false;
                     for t in &mut tracks {
-                        if !t.has_barked {
+                        if t.is_active && !t.has_barked {
                             needs_bark = true;
                         }
                     }
@@ -127,8 +129,8 @@ fn main() {
 
                         if needs_bark && last_bark.elapsed() >= BARK_COOLDOWN {
                             last_bark = Instant::now();
-                            for t in &mut tracks { t.has_barked = true; }
-                            println!("🐕 Barking! New human detected at {:.1}°", angle);
+                            for t in &mut tracks { if t.is_active { t.has_barked = true; } }
+                            println!("🐕 Barking! New active human detected at {:.1}°", angle);
                             std::thread::spawn(|| {
                                 match Command::new("python3")
                                     .arg(DOG_BARK_SCRIPT)
@@ -213,10 +215,27 @@ fn update_tracks(tracks: &mut Vec<HumanTrack>, clusters: &mut [Cluster]) {
             matched_track[ti] = true;
             tracks[ti].centroid = c.centroid;
             tracks[ti].missed = 0;
-            c.is_human = true;
+            tracks[ti].history.push(c.centroid);
+            if tracks[ti].history.len() > 10 {
+                tracks[ti].history.remove(0);
+            }
+            if let Some(&first) = tracks[ti].history.first() {
+                let dist = ((c.centroid.0 - first.0).powi(2) + (c.centroid.1 - first.1).powi(2)).sqrt();
+                if dist > 0.3 {
+                    tracks[ti].is_active = true;
+                }
+            }
+            c.is_human = tracks[ti].is_active;
         } else if c.is_human {
-            tracks.push(HumanTrack { centroid: c.centroid, missed: 0, has_barked: false });
+            tracks.push(HumanTrack { 
+                centroid: c.centroid, 
+                missed: 0, 
+                has_barked: false,
+                history: vec![c.centroid],
+                is_active: false,
+            });
             matched_track.push(true);
+            c.is_human = false;
         }
     }
 
